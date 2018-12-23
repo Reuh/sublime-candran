@@ -1,0 +1,5 @@
+{
+    "cmd": ["can", "$file"],
+    "file_regex": "^(?:can:)?[\t ](...*?):([0-9]*):?([0-9]*)",
+    "selector": "source.can"
+}
