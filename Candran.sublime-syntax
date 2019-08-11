@@ -1,95 +1,751 @@
 %YAML 1.2
 ---
-# http://www.sublimetext.com/docs/3/syntax.html
 name: Candran
-comment: "Candran Syntax: version 0.8"
+comment: Candran 0.8 syntax
 file_extensions:
   - can
   - candran
 first_line_match: \A#!.*?\bcan\b
 scope: source.candran
+variables:
+  reserved_word: |-
+    (?x:(?:
+      and|break|do|elseif|else|end|false|for|function|goto|if|in|
+      local|nil|not|or|repeat|return|then|true|until|while
+    ){{identifier_break}})
+  reserved_word_statement: |- # excludes 'not', 'true', 'nil', 'false', 'function'
+    (?x:(?:
+      and|break|do|elseif|else|end|for|goto|if|in|
+      local|or|repeat|return|then|until|while
+    ){{identifier_break}})
+
+  identifier_start: (?:[A-Za-z_])
+  identifier_char: (?:[A-Za-z0-9_])
+  identifier_break: (?!{{identifier_char}})
+  identifier_raw: (?:{{identifier_start}}{{identifier_char}}*)
+  identifier: (?:(?!{{reserved_word}}){{identifier_raw}})
+
+  short_function_begin: (?:\:(?=\()|(?=\(\))|(?=\({{identifier}}[=,\)]))
+  function_args_begin: (?:\(|"|'|\[=*\[|\{)
+  function_call_ahead: (?=\s*{{function_args_begin}})
+  function_assignment_ahead: (?=\s*=\s*(?:function|{{short_function_begin}}){{identifier_break}})
+
 contexts:
   main:
-    - match: '\b(function)\s+([a-zA-Z_.:]+[.:])?([a-zA-Z_]\w*)\s*(\()([^)]*)(\))'
-      scope: meta.function.lua
-      captures:
-        1: keyword.control.lua
-        2: entity.name.function.scope.lua
-        3: entity.name.function.lua
-        4: punctuation.definition.parameters.begin.lua
-        5: variable.parameter.function.lua
-        6: punctuation.definition.parameters.end.lua
-    - match: '(?<!function|\w|\s)\s*(\()((?:(?:\s*[\w]+\s*(?:=\s*[^,]+?)?,)*(?:\s*[\w]+\s*(?:=\s*[^,]+?)?))?)(\))'
-      scope: meta.function.lua
-      captures:
-        1: punctuation.definition.parameters.begin.lua
-        2: variable.parameter.function.lua
-        3: punctuation.definition.parameters.end.lua
-    - match: '(?<![\d.])\b0[xX][a-fA-F\d\.]+([pP][\-\+]?\d+)?|\b\d+(\.\d+)?([eE]-?\d+)?|\.\d+([eE]-?\d+)?'
-      scope: constant.numeric.lua
-    - match: "'"
-      captures:
-        0: punctuation.definition.string.begin.lua
+    - include: statements
+
+  else-pop:
+    - match: (?=\S)
+      pop: true
+
+  immediately-pop:
+    - match: ''
+      pop: true
+
+  prototype:
+    - match: --\[(=*)\[
+      scope: punctuation.definition.comment.begin.candran
       push:
-        - meta_scope: string.quoted.single.lua
-        - match: "'"
-          captures:
-            0: punctuation.definition.string.end.lua
+        - meta_include_prototype: false
+        - meta_scope: comment.block.candran
+        - match: \]\1\]
+          scope: punctuation.definition.comment.end.candran
           pop: true
-        - match: '\\([abfnrtv\\"'']|\r?\n|\n\r?|\d\d?\d?)'
-          scope: constant.character.escape.lua
-        - match: '\\[xX][0-9a-fA-F][0-9a-fA-F]'
-          scope: constant.character.escape.lua
-        - match: '\\u\{[0-9a-fA-F]{,7}\}'
-          scope: constant.character.escape.lua
-    - match: '"'
+    - match: (--).*
+      scope: comment.line.candran
       captures:
-        0: punctuation.definition.string.begin.lua
+        1: punctuation.definition.comment.candran
+
+  end:
+    - match: end{{identifier_break}}
+      scope: keyword.control.end.candran
+      pop: true
+
+  block-contents:
+    - meta_scope: meta.block.candran
+    - include: end
+    - include: statements
+
+  statements:
+    - match: ;
+      scope: punctuation.terminator.statement.candran
+
+    - match: function{{identifier_break}}
+      scope: storage.type.function.candran
       push:
-        - meta_scope: string.quoted.double.lua
-        - match: '"'
-          captures:
-            0: punctuation.definition.string.end.lua
+        - function-meta
+        - block-contents
+        - function-parameter-list
+        - function-name
+
+    - include: control-statements
+
+    - match: break{{identifier_break}}
+      scope: keyword.control.break.candran
+
+    - match: continue{{identifier_break}}
+      scope: keyword.control.continue.candran
+
+    - match: return{{identifier_break}}
+      scope: keyword.control.return.candran
+      push: expression-list
+
+    - match: push{{identifier_break}}
+      scope: keyword.control.push.candran
+      push: expression-list
+
+    - match: local|let{{identifier_break}}
+      scope: storage.modifier.candran
+      push: expression-list
+
+    - match: end{{identifier_break}}
+      scope: invalid.illegal.unexpected-end.candran
+
+    - match: (?=\S)
+      push: expression
+
+  function-parameter-list:
+    - match: \(
+      scope: punctuation.section.group.begin.candran
+      set:
+        - meta_scope: meta.group.candran
+        - match: \)
+          scope: punctuation.section.group.end.candran
           pop: true
-        - match: '\\([abfnrtv\\"'']|\r?\n|\n\r?|\d\d?\d?)'
-          scope: constant.character.escape.lua
-        - match: '\\[xX][0-9a-fA-F][0-9a-fA-F]'
-          scope: constant.character.escape.lua
-        - match: '\\u\{[0-9a-fA-F]{,7}\}'
-          scope: constant.character.escape.lua
-    - match: '(?<!--)\[(=*)\['
-      captures:
-        0: punctuation.definition.string.begin.lua
+        - match: ','
+          scope: punctuation.separator.comma.candran
+        - include: reserved-word-pop
+        - match: '({{identifier}})\s*(=)'
+          captures:
+            1: variable.parameter.function.candran
+            2: keyword.operator.assignment.candran
+          push: expression
+        - match: '{{identifier}}'
+          scope: variable.parameter.function.candran
+        - match: \.\.\.
+          scope: constant.language.candran
+    - include: else-pop
+
+  function-name:
+    - match: (?=\S)
+      set: [ function-name-end, function-name-begin ]
+
+  function-name-end:
+    - meta_scope: meta.name.function
+    - match: '[.:]'
+      scope: punctuation.accessor.candran
+      push: function-name-property
+    - include: else-pop
+
+  function-name-begin:
+    - match: '{{identifier}}(?=\s*[.:])'
+      scope: variable.other.candran
+      pop: true
+    - match: '{{identifier}}'
+      scope: entity.name.function.candran
+      pop: true
+    - include: else-pop
+
+  function-name-property:
+    - match: '{{identifier}}(?=\s*[.:])'
+      scope: meta.property.candran
+      pop: true
+    - match: '{{identifier}}'
+      scope: meta.property.candran entity.name.function.candran
+      pop: true
+    - include: else-pop
+
+  control-statements:
+    - match: do{{identifier_break}}
+      scope: keyword.control.candran
+      push: block-contents
+
+    - match: if{{identifier_break}}
+      scope: keyword.control.conditional.candran
       push:
-        - meta_scope: string.quoted.other.multiline.lua
-        - match: '\]\1\]'
-          captures:
-            0: punctuation.definition.string.end.lua
-          pop: true
-    - match: '--\[(=*)\['
-      captures:
-        0: punctuation.definition.comment.lua
+        - if-then
+        - expression
+
+    - match: while{{identifier_break}}
+      scope: keyword.control.loop.candran
       push:
-        - meta_scope: comment.block.lua
-        - match: '\]\1\]'
-          captures:
-            0: punctuation.definition.comment.lua
+        - - match: do{{identifier_break}}
+            scope: keyword.control.candran
+            push: block-contents
+          - include: else-pop
+        - expression
+
+    - match: repeat{{identifier_break}}
+      scope: keyword.control.loop.candran
+      push:
+        - - match: until{{identifier_break}}
+            scope: keyword.control.loop.candran
+            set: expression
+        - - meta_scope: meta.block.candran
+          - match: (?=until{{identifier_break}})
+            pop: true
+          - include: statements
+
+    - match: for{{identifier_break}}
+      scope: keyword.control.loop.candran
+      push:
+        - - match: do{{identifier_break}}
+            scope: keyword.control.candran
+            push: block-contents
+          - include: else-pop
+
+        - - match: (?==)
+            set: expression-list-end
+
+          - match: in{{identifier_break}}
+            scope: keyword.control.loop.candran
+            set: expression-list
+
+          - include: else-pop
+
+        - expression-list
+
+    - match: '::'
+      scope: punctuation.definition.label.begin.candran
+      push:
+        - match: '{{identifier}}'
+          scope: entity.name.label.candran
+          set:
+            - match: '::'
+              scope: punctuation.definition.label.end.candran
+              pop: true
+            - include: else-pop
+        - include: else-pop
+
+    - match: goto{{identifier_break}}
+      scope: keyword.control.goto.candran
+      push:
+        - match: '{{identifier}}'
+          scope: variable.label.candran
           pop: true
-    - match: '(--)(?!\[\[).*$\n?'
-      scope: comment.line.double-dash.lua
+        - include: else-pop
+
+  if-then:
+    - match: then{{identifier_break}}
+      scope: keyword.control.conditional.candran
+      set: if-block
+    - include: else-pop
+
+  if-block:
+    - meta_scope: meta.block.candran
+    - include: end
+    - match: elseif{{identifier_break}}
+      scope: keyword.control.conditional.candran
+      set:
+        - if-then
+        - expression
+    - match: else{{identifier_break}}
+      scope: keyword.control.conditional.candran
+      set: if-block
+    - include: statements
+
+  expression:
+    - match: ''
+      set:
+        - expression-end
+        - expression-begin
+
+  expression-list:
+    - match: ''
+      set:
+        - expression-list-end
+        - expression-begin
+
+  expression-end:
+    - match: (?=;)
+      pop: true
+
+    - match: (?={{function_args_begin}})
+      push:
+        - function-arguments-meta
+        - function-arguments
+
+    - include: infix-operator
+    - include: accessor
+
+    - include: else-pop
+
+  expression-list-end:
+    - match: ','
+      scope: punctuation.separator.comma.candran
+      push: expression-begin
+    - include: expression-end
+
+  expression-begin:
+    - match: (?=;)
+      pop: true
+
+    - include: prefix-operator
+    - include: builtin
+    - include: support
+    - include: variable
+    - include: number
+    - include: string
+    - include: function-literal
+    - include: parenthesized-expression
+    - include: table-constructor
+    - include: table-comprehension
+
+    - include: else-pop
+
+  infix-operator:
+    - match: (?:[=<>~]=)
+      scope: keyword.operator.comparison.candran
+      push: expression-begin
+    - match: (?://|[-+*/%^])
+      scope: keyword.operator.arithmetic.candran
+      push: expression-begin
+    - match: (?:>>|<<|[&|~])
+      scope: keyword.operator.bitwise.candran
+      push: expression-begin
+    - match: (?:[<>])
+      scope: keyword.operator.comparison.candran
+      push: expression-begin
+    - match: \.\.
+      scope: keyword.operator.concatenation.candran
+      push: expression-begin
+    - match: =
+      scope: keyword.operator.assignment.candran
+      push: expression-begin
+    - match: (?:and|or){{identifier_break}}
+      scope: keyword.operator.logical.candran
+      push: expression-begin
+
+  accessor:
+    - match: '[.:]'
+      scope: punctuation.accessor.candran
+      push: property
+
+    - match: \[
+      scope: punctuation.section.brackets.begin.candran
+      push:
+        - meta_scope: meta.brackets.candran
+        - match: \]
+          scope: punctuation.section.brackets.end.candran
+          pop: true
+        - include: reserved-word-expression-pop
+        - match: (?=\S)
+          push: expression
+
+  property:
+    - match: '{{identifier}}{{function_assignment_ahead}}'
+      scope: meta.property.candran entity.name.function.candran
+      pop: true
+    - match: '{{identifier}}{{function_call_ahead}}'
+      scope: meta.property.candran variable.function.candran
+      pop: true
+    - match: '{{identifier}}'
+      scope: meta.property.candran
+      pop: true
+    - include: reserved-word-pop
+    - include: else-pop
+
+  function-arguments-meta:
+    - meta_scope: meta.function-call.arguments.candran
+    - include: immediately-pop
+
+  function-arguments:
+    - include: string
+    - include: table-constructor
+
+    - match: \(
+      scope: punctuation.section.group.begin.candran
+      set:
+        - meta_scope: meta.group.candran
+        - match: \)
+          scope: punctuation.section.group.end.candran
+          pop: true
+        - include: reserved-word-expression-pop
+        - match: (?=\S)
+          push: expression-list
+
+  prefix-operator:
+    - match: '#'
+      scope: keyword.operator.length.candran
+    - match: \-
+      scope: keyword.operator.arithmetic.candran
+    - match: \~
+      scope: keyword.operator.bitwise.candran
+    - match: not{{identifier_break}}
+      scope: keyword.operator.logical.candran
+
+  reserved-word-pop:
+    - match: '{{reserved_word}}'
+      scope: invalid.unexpected-keyword.candran
+      pop: true
+
+  reserved-word-expression-pop:
+    - match: '{{reserved_word_statement}}'
+      scope: invalid.unexpected-keyword.candran
+      pop: true
+
+  builtin:
+    - match: true{{identifier_break}}
+      scope: constant.language.boolean.true.candran
+      pop: true
+    - match: false{{identifier_break}}
+      scope: constant.language.boolean.true.candran
+      pop: true
+    - match: nil{{identifier_break}}
+      scope: constant.language.null.candran
+      pop: true
+    - match: \.\.\.
+      scope: constant.language.candran
+      pop: true
+    - match: self|@{{identifier_break}}
+      scope: variable.language.this.candran
+      pop: true
+    - match: '@{{identifier_start}}'
+      scope: variable.language.this.candran
+      pop: true
+
+  support:
+    - match: |-
+        (?x:_G|_VERSION){{identifier_break}}
+      scope: support.constant.builtin.candran
+      pop: true
+
+    - match: |-
+        (?x:
+          assert|collectgarbage|dofile|error|getmetatable|ipairs|load|loadfile
+          |next|pairs|pcall|print|rawequal|rawget|rawlen|rawset|select
+          |setmetatable|tonumber|tostring|type|xpcall
+          |require|getfenv|module|setfenv|unpack
+        ){{identifier_break}}
+      scope: support.function.builtin.candran
+      pop: true
+
+    - include: builtin-modules
+
+  variable:
+    - match: '{{identifier}}{{function_assignment_ahead}}'
+      scope: entity.name.function.candran
+      pop: true
+
+    - match: '{{identifier}}{{function_call_ahead}}'
+      scope: variable.function.candran
+      pop: true
+
+    - match: '{{identifier}}'
+      scope: variable.other.candran
+      pop: true
+
+  number:
+    - match: (0[Xx])\h*(?:\.\h*)?(?:[Pp][-+]?\d*)?
+      scope: constant.numeric.hexadecimal.candran
       captures:
-        1: punctuation.definition.comment.lua
-    - match: \b(and|or|not|break|do|else|for|if|elseif|return|then|repeat|while|until|end|function|local|in|goto|continue|let|push)\b
-      scope: keyword.control.lua
-    - match: '(?<![^.]\.|:)\b(false|nil|true|_G|_VERSION|math\.(pi|huge))\b|(?<![.])\.{3}(?!\.)'
-      scope: constant.language.lua
-    - match: '(?<![^.]\.|:)\b(self|@)\b'
-      scope: variable.language.self.lua
-    - match: '(?<![^.]\.|:)\b(assert|collectgarbage|dofile|error|getfenv|getmetatable|ipairs|loadfile|loadstring|module|next|pairs|pcall|print|rawequal|rawget|rawset|require|select|setfenv|setmetatable|tonumber|tostring|type|unpack|xpcall)\b(?=[( {"''\[])'
-      scope: support.function.lua
-    - match: '(?<![^.]\.|:)\b(coroutine\.(create|resume|running|status|wrap|yield)|string\.(byte|char|dump|find|format|gmatch|gsub|len|lower|match|rep|reverse|sub|upper)|table\.(concat|insert|maxn|remove|sort)|math\.(abs|acos|asin|atan2?|ceil|cosh?|deg|exp|floor|fmod|frexp|ldexp|log|log10|max|min|modf|pow|rad|random|randomseed|sinh?|sqrt|tanh?)|io\.(close|flush|input|lines|open|output|popen|read|tmpfile|type|write)|os\.(clock|date|difftime|execute|exit|getenv|remove|rename|setlocale|time|tmpname)|package\.(cpath|loaded|loadlib|path|preload|seeall)|debug\.(debug|[gs]etfenv|[gs]ethook|getinfo|[gs]etlocal|[gs]etmetatable|getregistry|[gs]etupvalue|traceback))\b(?=[( {"''\[])'
-      scope: support.function.library.lua
-    - match: \b(and|or|not)\b
-      scope: keyword.operator.lua
-    - match: '\+|-|%|#|\*|\/|\^|==?|~=|<=?|>=?|(?<!\.)\.{2}(?!\.)'
-      scope: keyword.operator.lua
+        1: punctuation.definition.numeric.hexadecimal.candran
+      pop: true
+
+    - match: (?:\d+(?:\.\d*)?|\.\d+)([Ee][-+]?\d+)?
+      scope: constant.numeric.decimal.candran
+      pop: true
+
+  string:
+    - match: \'
+      scope: punctuation.definition.string.begin.candran
+      set:
+        - meta_include_prototype: false
+        - meta_scope: string.quoted.single.candran
+        - include: string-content
+        - match: \'
+          scope: punctuation.definition.string.end.candran
+          pop: true
+
+    - match: \"
+      scope: punctuation.definition.string.begin.candran
+      set:
+        - meta_include_prototype: false
+        - meta_scope: string.quoted.double.candran
+        - include: string-content
+        - match: \"
+          scope: punctuation.definition.string.end.candran
+          pop: true
+
+    - match: \[(=*)\[
+      scope: punctuation.definition.string.begin.candran
+      set:
+        - meta_scope: string.quoted.multiline.candran
+        - meta_include_prototype: false
+        - match: \]\1\]
+          scope: punctuation.definition.string.end.candran
+          pop: true
+
+  string-content:
+    - match: \\[abfnrtv\\'"\[\]\n]
+      scope: constant.character.escape.candran
+
+    - match: \\x\h\h
+      scope: constant.character.escape.hexadecimal.candran
+
+    - match: \\\d{1,3}
+      scope: constant.character.escape.decimal.candran
+
+    - match: \\u\{\h+\}
+      scope: constant.character.escape.unicode.candran
+
+    - match: \\z
+      push:
+        - meta_scope: constant.character.escape.whitespace.candran
+        - include: else-pop
+
+    - match: \n
+      scope: invalid.illegal.unclosed-string.candran
+      pop: true
+    - match: \\.
+      scope: invalid.illegal.invalid-escape.candran
+
+  parenthesized-expression:
+    - match: \(
+      scope: punctuation.section.group.begin.candran
+      set:
+        - meta_scope: meta.group.candran
+        - match: \)
+          scope: punctuation.section.group.end.candran
+          pop: true
+        - include: reserved-word-expression-pop
+        - match: (?=\S)
+          push: expression
+
+  table-constructor:
+    - match: \{
+      scope: punctuation.section.block.begin.candran
+      set:
+        - meta_scope: meta.mapping.candran
+        - match: \}
+          scope: punctuation.section.block.end.candran
+          pop: true
+
+        - match: '[,;]'
+          scope: punctuation.separator.field.candran
+
+        - match: \[(?!=*\[)
+          scope: punctuation.section.brackets.begin.candran
+          push:
+            - meta_scope: meta.brackets.candran
+            - match: \]
+              scope: punctuation.section.brackets.end.candran
+              pop: true
+            - match: (?=\S)
+              push: expression
+
+        - match: '{{identifier}}(?=\s*=)'
+          scope: meta.key.candran string.unquoted.key.candran
+
+        - match: =
+          scope: punctuation.separator.key-value.candran
+          push: expression
+
+        - match: (?=\S)
+          push: expression
+
+  table-comprehension:
+    - match: \[
+      scope: punctuation.section.brackets.begin.candran
+      push:
+        - meta_scope: meta.brackets.candran
+        - match: \]
+          scope: punctuation.section.brackets.end.candran
+          pop: true
+        - include: statements
+
+  function-literal:
+    - match: function|{{short_function_begin}}{{identifier_break}}
+      scope: storage.type.function.candran
+      set:
+        - function-meta
+        - block-contents
+        - function-parameter-list
+        - function-name
+
+  function-meta:
+    - meta_scope: meta.function.candran
+    - include: immediately-pop
+
+  builtin-modules:
+    - match: coroutine{{identifier_break}}
+      scope: support.constant.builtin.candran
+      set:
+        - match: \.
+          scope: punctuation.accessor.candran
+          set:
+            - match: |-
+                (?x:
+                  create|isyieldable|resume|running|status|wrap|yield
+                ){{identifier_break}}
+              scope: meta.property.candran support.function.builtin.candran
+              pop: true
+            - include: property
+        - include: else-pop
+
+    - match: package{{identifier_break}}
+      scope: support.constant.builtin.candran
+      set:
+        - match: \.
+          scope: punctuation.accessor.candran
+          set:
+            - match: |-
+                (?x:
+                  config|cpath|loaded|path|preload|searchers|loaders
+                ){{identifier_break}}
+              scope: meta.property.candran support.constant.builtin.candran
+              pop: true
+            - match: |-
+                (?x:
+                  loadlib|searchpath|seeall
+                ){{identifier_break}}
+              scope: meta.property.candran support.function.builtin.candran
+              pop: true
+            - include: property
+        - include: else-pop
+
+    - match: string{{identifier_break}}
+      scope: support.constant.builtin.candran
+      set:
+        - match: \.
+          scope: punctuation.accessor.candran
+          set:
+            - match: |-
+                (?x:
+                  byte|char|dump|find|format|gmatch|gsub|len|lower|match|pack
+                  |packsize|rep|reverse|sub|unpack|upper
+                ){{identifier_break}}
+              scope: meta.property.candran support.function.builtin.candran
+              pop: true
+            - include: property
+        - include: else-pop
+
+    - match: utf8{{identifier_break}}
+      scope: support.constant.builtin.candran
+      set:
+        - match: \.
+          scope: punctuation.accessor.candran
+          set:
+            - match: |-
+                (?x:
+                  charpattern
+                ){{identifier_break}}
+              scope: meta.property.candran support.constant.builtin.candran
+              pop: true
+            - match: |-
+                (?x:
+                  char|codes|codepoint|len|offset
+                ){{identifier_break}}
+              scope: meta.property.candran support.function.builtin.candran
+              pop: true
+            - include: property
+        - include: else-pop
+
+    - match: table{{identifier_break}}
+      scope: support.constant.builtin.candran
+      set:
+        - match: \.
+          scope: punctuation.accessor.candran
+          set:
+            - match: |-
+                (?x:
+                  concat|insert|move|pack|remove|sort|unpack|maxn
+                ){{identifier_break}}
+              scope: meta.property.candran support.function.builtin.candran
+              pop: true
+            - include: property
+        - include: else-pop
+
+    - match: math{{identifier_break}}
+      scope: support.constant.builtin.candran
+      set:
+        - match: \.
+          scope: punctuation.accessor.candran
+          set:
+            - match: |-
+                (?x:
+                  huge|maxinteger|mininteger|pi
+                ){{identifier_break}}
+              scope: meta.property.candran support.constant.builtin.candran
+              pop: true
+            - match: |-
+                (?x:
+                  abs|acos|asin|atan|ceil|cos|deg|exp|floor|fmod|log|max|min
+                  |modf|rad|random|randomseed|sin|sqrt|tan|tointeger|type|ult
+                  |atan2|cosh|frexp|ldexp|log10|pow|sinh|tanh
+                ){{identifier_break}}
+              scope: meta.property.candran support.function.builtin.candran
+              pop: true
+            - include: property
+        - include: else-pop
+
+    - match: io{{identifier_break}}
+      scope: support.constant.builtin.candran
+      set:
+        - match: \.
+          scope: punctuation.accessor.candran
+          set:
+            - match: |-
+                (?x:
+                  stderr|stdin|stdout
+                ){{identifier_break}}
+              scope: meta.property.candran support.constant.builtin.candran
+              pop: true
+            - match: |-
+                (?x:
+                  close|flush|input|lines|open|output|popen|read|tmpfile|type|write
+                ){{identifier_break}}
+              scope: meta.property.candran support.function.builtin.candran
+              pop: true
+            - include: property
+        - include: else-pop
+
+    - match: os{{identifier_break}}
+      scope: support.constant.builtin.candran
+      set:
+        - match: \.
+          scope: punctuation.accessor.candran
+          set:
+            - match: |-
+                (?x:
+                  clock|date|difftime|execute|exit|getenv|remove|rename
+                  |setlocale|time|tmpname
+                ){{identifier_break}}
+              scope: meta.property.candran support.function.builtin.candran
+              pop: true
+            - include: property
+        - include: else-pop
+
+    - match: debug{{identifier_break}}
+      scope: support.constant.builtin.candran
+      set:
+        - match: \.
+          scope: punctuation.accessor.candran
+          set:
+            - match: |-
+                (?x:
+                  debug|gethook|getinfo|getlocal|getmetatable|getregistry
+                  |getupvalue|getuservalue|sethook|setlocal|setmetatable
+                  |setupvalue|setuservalue|traceback|upvalueid|upvaluejoin
+                  |getfenv|setfenv
+                ){{identifier_break}}
+              scope: meta.property.candran support.function.builtin.candran
+              pop: true
+            - include: property
+        - include: else-pop
+
+    - match: bit32{{identifier_break}}
+      scope: support.constant.builtin.candran
+      set:
+        - match: \.
+          scope: punctuation.accessor.candran
+          set:
+            - match: |-
+                (?x:
+                  arshift|band|bnot|bor|btest|bxor|extract|lrotate|lshift
+                  |replace|rrotate|rshift
+                ){{identifier_break}}
+              scope: meta.property.candran support.function.builtin.candran
+              pop: true
+            - include: property
+        - include: else-pop

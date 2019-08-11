@@ -1,18 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
-<dict>
-	<key>name</key>
-	<string>Indent</string>
-	<key>scope</key>
-	<string>source.candran</string>
-	<key>settings</key>
 	<dict>
-		<key>decreaseIndentPattern</key>
-		<string>^\s*(elseif|else|end|\})\s*$</string>
-		<key>increaseIndentPattern</key>
-		<string>^.*\b(else|elseif|for|(local\s+)?function|if|repeat|until|while)\b((?!end).)*$|\{\s*$|^.*(\s|,|=):?\([^\(]*\)\s*$</string>
-		<key>indentSquareBrackets</key>
-		<true/>
+		<key>name</key>
+		<string>Indent</string>
+		<key>scope</key>
+		<string>source.candran</string>
+		<key>settings</key>
+		<dict>
+			<key>decreaseIndentPattern</key>
+			<string>(^\s*\b(elsei|elseif|else|end|until)\b.*$|^((?!\{).)*\}\;?.*$)</string>
+			<key>increaseIndentPattern</key>
+			<string>((^\s*\b(((local|let)?[\s\w=]+)?function|repeat|else|elseif|if|while)\b|^.*\b(do|then)\b|^.*([\(\,\=\[\{\+\-\*\/\^\%\&\|\:]|and|or|\/\/|\.\.|\&gt;\&gt;|\&lt;\&lt;)\s*(\(\)|\([A-Za-z_][A-Za-z0-9_]*[=,\)]))((?!\bend\b).)*$|^.*\{((?!\}).)*$)</string>
+		</dict>
 	</dict>
-</dict>
 </plist>
