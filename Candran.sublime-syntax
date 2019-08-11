@@ -371,6 +371,8 @@ contexts:
       scope: keyword.operator.arithmetic.candran
     - match: \~
       scope: keyword.operator.bitwise.candran
+    - match: '@'
+      scope: variable.language.this.candran
     - match: not{{identifier_break}}
       scope: keyword.operator.logical.candran
 
@@ -398,9 +400,6 @@ contexts:
       scope: constant.language.candran
       pop: true
     - match: self|@{{identifier_break}}
-      scope: variable.language.this.candran
-      pop: true
-    - match: '@{{identifier_start}}'
       scope: variable.language.this.candran
       pop: true
 
