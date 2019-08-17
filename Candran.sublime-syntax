@@ -546,7 +546,7 @@ contexts:
   table-comprehension:
     - match: \[
       scope: punctuation.section.brackets.begin.candran
-      push:
+      set:
         - meta_scope: meta.brackets.candran
         - match: \]
           scope: punctuation.section.brackets.end.candran
