@@ -25,7 +25,7 @@ variables:
   identifier_raw: (?:{{identifier_start}}{{identifier_char}}*)
   identifier: (?:(?!{{reserved_word}}){{identifier_raw}})
 
-  short_function_begin: (?:\:(?=\()|(?=\(\))|(?=\({{identifier}}[=,\)]))
+  short_function_begin: (?:\:(?=\()|(?=\(\))|(?=\(\s*\.\.\.\s*\))|(?=\({{identifier}}[=,\)]))
   function_args_begin: (?:\(|"|'|\[=*\[|\{)
   function_call_ahead: (?=\s*{{function_args_begin}})
   function_assignment_ahead: (?=\s*=\s*(?:function|{{short_function_begin}}){{identifier_break}})
